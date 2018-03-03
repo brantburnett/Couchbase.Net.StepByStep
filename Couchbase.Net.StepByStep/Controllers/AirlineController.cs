@@ -5,6 +5,8 @@ using AutoMapper;
 using Couchbase.Core;
 using Couchbase.Extensions.DependencyInjection;
 using Couchbase.IO;
+using Couchbase.Linq;
+using Couchbase.Linq.Extensions;
 using Couchbase.Net.StepByStep.Documents;
 using Couchbase.Net.StepByStep.Dto;
 using Microsoft.AspNetCore.Mvc;
@@ -27,7 +29,18 @@ namespace Couchbase.Net.StepByStep.Controllers
         [HttpGet]
         public async Task<IActionResult> GetAirlines()
         {
-            throw new NotImplementedException();
+            var bucket = _bucketProvider.GetBucket("travel-sample");
+
+            var context = new BucketContext(bucket);
+
+            var query =
+                from p in context.Query<Airline>()
+                orderby p.Name
+                select p;
+
+            var result = await query.ExecuteAsync();
+
+            return Ok(result.Select(p => _mapper.Map<AirlineDto>(p)));
         }
 
         // GET /airline/10123
