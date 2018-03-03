@@ -2,6 +2,8 @@
 using System.Linq;
 using System.Threading.Tasks;
 using AutoMapper;
+using Couchbase.Extensions.DependencyInjection;
+using Couchbase.IO;
 using Couchbase.Net.StepByStep.Documents;
 using Couchbase.Net.StepByStep.Dto;
 using Microsoft.AspNetCore.Mvc;
@@ -12,10 +14,12 @@ namespace Couchbase.Net.StepByStep.Controllers
     public class AirlineController : Controller
     {
         private readonly IMapper _mapper;
+        private readonly IBucketProvider _bucketProvider;
 
-        public AirlineController(IMapper mapper)
+        public AirlineController(IMapper mapper, IBucketProvider bucketProvider)
         {
             _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
+            _bucketProvider = bucketProvider ?? throw new ArgumentNullException(nameof(bucketProvider));
         }
 
         // GET /airline
@@ -29,7 +33,17 @@ namespace Couchbase.Net.StepByStep.Controllers
         [HttpGet("{id}")]
         public async Task<IActionResult> GetAirline(int id)
         {
-            throw new NotImplementedException();
+            var bucket = _bucketProvider.GetBucket("travel-sample");
+
+            var document = await bucket.GetDocumentAsync<Airline>(Airline.GetKey(id));
+            if (document.Status == ResponseStatus.KeyNotFound)
+            {
+                return NotFound();
+            }
+
+            document.EnsureSuccess();
+
+            return Ok(_mapper.Map<AirlineDto>(document.Content));
         }
 
         // POST /airline
