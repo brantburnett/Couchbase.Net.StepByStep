@@ -1,5 +1,6 @@
 ﻿using System;
 using AutoMapper;
+using Couchbase.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
@@ -27,6 +28,8 @@ namespace Couchbase.Net.StepByStep
                 });
 
             services.AddAutoMapper();
+
+            services.AddCouchbase(options => Configuration.GetSection("Couchbase").Bind(options));
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -38,6 +41,12 @@ namespace Couchbase.Net.StepByStep
             }
 
             app.UseMvc();
+
+            var appLifetime = app.ApplicationServices.GetRequiredService<IApplicationLifetime>();
+            appLifetime.ApplicationStopped.Register(() =>
+            {
+                app.ApplicationServices.GetRequiredService<ICouchbaseLifetimeService>().Close();
+            });
         }
     }
 }
