@@ -2,6 +2,7 @@
 using System.Linq;
 using System.Threading.Tasks;
 using AutoMapper;
+using Couchbase.Core;
 using Couchbase.Extensions.DependencyInjection;
 using Couchbase.IO;
 using Couchbase.Net.StepByStep.Documents;
@@ -55,7 +56,21 @@ namespace Couchbase.Net.StepByStep.Controllers
                 return BadRequest();
             }
 
-            throw new NotImplementedException();
+            var bucket = _bucketProvider.GetBucket("travel-sample");
+
+            var content = _mapper.Map<Airline>(value);
+            content.Id = await GetNextId(bucket);
+
+            var document = new Document<Airline>
+            {
+                Content = content,
+                Id = Airline.GetKey(content.Id)
+            };
+
+            var result = await bucket.InsertAsync(document);
+            result.EnsureSuccess();
+
+            return Ok(_mapper.Map<AirlineDto>(content));
         }
 
         // PUT /airline/10123
@@ -90,6 +105,43 @@ namespace Couchbase.Net.StepByStep.Controllers
         public async Task<IActionResult> DeleteAirline(int id)
         {
             throw new NotImplementedException();
+        }
+
+        private static async Task<int> GetNextId(IBucket bucket)
+        {
+            while (true)
+            {
+                var builder = bucket.MutateIn<AirlineId>(AirlineId.GetKey());
+                builder.Counter(p => p.Id, 1, true);
+
+                var result = await builder.ExecuteAsync();
+                if (result.Status == ResponseStatus.KeyNotFound)
+                {
+                    var document = new Document<AirlineId>
+                    {
+                        Content = new AirlineId
+                        {
+                            Id = 100000 // Base for new increments, probably 0 for real apps
+                        },
+                        Id = AirlineId.GetKey()
+                    };
+
+                    var insertResult = await bucket.InsertAsync(document);
+                    if (insertResult.Status != ResponseStatus.KeyExists)
+                    {
+                        // Ignore failure if key exists, just means another thread created it simultaneously
+                        insertResult.EnsureSuccess();
+                    }
+
+                    // Now that the document exists, try to increment again on next loop
+                }
+                else
+                {
+                    result.EnsureSuccess();
+
+                    return result.Content(p => p.Id);
+                }
+            }
         }
     }
 }
