@@ -104,7 +104,16 @@ namespace Couchbase.Net.StepByStep.Controllers
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteAirline(int id)
         {
-            throw new NotImplementedException();
+            var bucket = _bucketProvider.GetBucket("travel-sample");
+
+            var result = await bucket.RemoveAsync(Airline.GetKey(id));
+            if (!result.Success && result.Status != ResponseStatus.KeyNotFound)
+            {
+                // Throw an exception on failures other than KeyNotFound
+                result.EnsureSuccess();
+            }
+
+            return NoContent();
         }
 
         private static async Task<int> GetNextId(IBucket bucket)
