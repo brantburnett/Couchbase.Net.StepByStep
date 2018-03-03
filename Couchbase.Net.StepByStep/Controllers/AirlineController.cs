@@ -67,7 +67,22 @@ namespace Couchbase.Net.StepByStep.Controllers
                 return BadRequest();
             }
 
-            throw new NotImplementedException();
+            var bucket = _bucketProvider.GetBucket("travel-sample");
+
+            var document = await bucket.GetDocumentAsync<Airline>(Airline.GetKey(id));
+            if (document.Status == ResponseStatus.KeyNotFound)
+            {
+                return NotFound();
+            }
+
+            document.EnsureSuccess();
+
+            _mapper.Map(value, document.Content);
+
+            var result = await bucket.ReplaceAsync(document.Document);
+            result.EnsureSuccess();
+
+            return Ok(_mapper.Map<AirlineDto>(document.Content));
         }
 
         // DELETE /airline/10123
