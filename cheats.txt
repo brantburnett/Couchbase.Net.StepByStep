@@ -1,0 +1,45 @@
+Various cheats to help in a live demo:
+
+Run Couchbase in a Docker container:
+docker run -d --name demo -p 8091-8094:8091-8094 -p 11210-11211:11210-11211 couchbase:enterprise-5.1.0
+
+
+
+Method for getting the next incrementing ID:
+
+        private static async Task<int> GetNextId(IBucket bucket)
+        {
+            while (true)
+            {
+                var builder = bucket.MutateIn<AirlineId>(AirlineId.GetKey());
+                builder.Counter(p => p.Id, 1, true);
+
+                var result = await builder.ExecuteAsync();
+                if (result.Status == ResponseStatus.KeyNotFound)
+                {
+                    var document = new Document<AirlineId>
+                    {
+                        Content = new AirlineId
+                        {
+                            Id = 100000 // Base for new increments, probably 0 for real apps
+                        },
+                        Id = AirlineId.GetKey()
+                    };
+
+                    var insertResult = await bucket.InsertAsync(document);
+                    if (insertResult.Status != ResponseStatus.KeyExists)
+                    {
+                        // Ignore failure if key exists, just means another thread created it simultaneously
+                        insertResult.EnsureSuccess();
+                    }
+
+                    // Now that the document exists, try to increment again on next loop
+                }
+                else
+                {
+                    result.EnsureSuccess();
+
+                    return result.Content(p => p.Id);
+                }
+            }
+        }
